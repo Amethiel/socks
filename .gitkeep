@@ -1,0 +1,14 @@
+```plantuml
+@startuml
+"土豪" ..> "司机1"
+"土豪" ..> "司机2"
+@enduml
+```
+
+
+```plantuml
+@startuml
+"顾客1" <.. "司机"
+"顾客2" <.. "司机"
+@enduml
+```
