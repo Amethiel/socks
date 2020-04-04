@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -15,12 +16,11 @@ import (
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	cert, err := tls.LoadX509KeyPair("client1.pem", "client1.key")
+	cert, err := tls.LoadX509KeyPair(clientPem, clientKey)
 	if err != nil {
-		log.Fatalln("FAILED to load client key", err)
+		log.Fatalln("FAILED to load client key:(%+v, %+v), error message: %s", clientPem, clientKey, err)
 	}
 
-	//config := &tls.Config{InsecureSkipVerify: true}
 	config := &tls.Config{
 		Certificates:       []tls.Certificate{cert},
 		MinVersion:         tls.VersionTLS12,
@@ -30,7 +30,7 @@ func handleConnection(conn net.Conn) {
 	}
 	proxyConn, err := tls.Dial("tcp", remote, config)
 	if err != nil {
-		log.Fatalln("FAILED to connect to remote", err)
+		log.Fatalf("FAILED to connect to remote %+v, error message: %s", remote, err)
 	}
 
 	ExitChan := make(chan bool)
@@ -51,19 +51,28 @@ func handleConnection(conn net.Conn) {
 }
 
 var (
-	exePath string
-	pool    *x509.CertPool
-	remote  string
+	exePath   string
+	pool      *x509.CertPool
+	remote    string
+	caPem     string
+	clientPem string
+	clientKey string
+	port      int
 )
 
 func init() {
 	flag.StringVar(&remote, "r", "proxy.focusworks.net:1443", "远程服务地址")
+	flag.StringVar(&caPem, "ca", "ca.pem", "CA证书")
+	flag.StringVar(&clientPem, "c", "client.pem", "客户端证书")
+	flag.StringVar(&clientKey, "k", "client.key", "客户端私钥")
+	flag.IntVar(&port, "p", 2080, "本地监听端口号")
+	flag.Parse()
 
 	dir, _ := os.Executable()
 	exePath = filepath.Dir(dir)
 
 	pool = x509.NewCertPool()
-	caCrt, err := ioutil.ReadFile("ca.pem")
+	caCrt, err := ioutil.ReadFile(caPem)
 	if err != nil {
 		log.Fatalln("ReadFile err:", err)
 	}
@@ -71,10 +80,8 @@ func init() {
 }
 
 func main() {
-	flag.Parse()
-
 	log.Println("Proxy start ... ")
-	ln, err := net.Listen("tcp", ":2080")
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		log.Fatalln("FAILED to start proxy", err)
 	}

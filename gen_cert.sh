@@ -84,4 +84,4 @@ function gen_client_cert() {
 
 gen_ca
 gen_server_cert
-gen_client_cert client1
+gen_client_cert client

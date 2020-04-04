@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -147,16 +148,26 @@ func handleConnection(conn net.Conn) {
 }
 
 var (
-	exePath string
-	pool    *x509.CertPool
+	exePath   string
+	pool      *x509.CertPool
+	caPem     string
+	serverPem string
+	serverKey string
+	port      int
 )
 
 func init() {
+	flag.StringVar(&caPem, "ca", "ca.pem", "CA证书")
+	flag.StringVar(&serverPem, "c", "server.pem", "服务端证书")
+	flag.StringVar(&serverKey, "k", "server.key", "服务端私钥")
+	flag.IntVar(&port, "p", 1443, "监听端口号")
+	flag.Parse()
+
 	dir, _ := os.Executable()
 	exePath = filepath.Dir(dir)
 
 	pool = x509.NewCertPool()
-	caCrt, err := ioutil.ReadFile("ca.pem")
+	caCrt, err := ioutil.ReadFile(caPem)
 	if err != nil {
 		log.Fatalln("ReadFile err:", err)
 	}
@@ -167,7 +178,7 @@ func main() {
 	log.Println("Server start ... ")
 	//log.Println(exePath)
 
-	cert, err := tls.LoadX509KeyPair("server.pem", "server.key")
+	cert, err := tls.LoadX509KeyPair(serverPem, serverKey)
 	if err != nil {
 		log.Fatalln("FAILED to load server key", err)
 		return
@@ -181,7 +192,7 @@ func main() {
 		InsecureSkipVerify: true,
 	}
 
-	ln, err := tls.Listen("tcp", ":1443", config)
+	ln, err := tls.Listen("tcp", fmt.Sprintf(":%d", port), config)
 	if err != nil {
 		log.Fatalln("FAILED to start server", err)
 	}
