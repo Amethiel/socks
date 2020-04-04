@@ -3,13 +3,15 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 )
 
 func methodSelection(conn net.Conn) error {
@@ -32,7 +34,7 @@ func methodSelection(conn net.Conn) error {
 		conn.Write([]byte{5, 0})
 	} else {
 		conn.Write([]byte{5, 0xFF})
-		return errors.New(fmt.Sprintf("Message parse error: %v", buff))
+		return fmt.Errorf("Message parse error: %v", buff)
 	}
 
 	return nil
@@ -79,7 +81,7 @@ func connect(conn net.Conn) (net.Conn, error) {
 	buff := make([]byte, connectLength)
 	_, err := conn.Read(buff)
 	if err != nil {
-		fmt.Println(err)
+		//log.Println("FAILED to read data from client", err)
 		conn.Write([]byte{5, 1})
 		return nil, nil
 	}
@@ -117,45 +119,73 @@ func handleConnection(conn net.Conn) {
 
 	err := methodSelection(conn)
 	if err != nil {
-		fmt.Println(err)
+		log.Println("FAILED to select authentication method", err)
 		return
 	}
 
 	proxyConn, err := connect(conn)
 	if err != nil {
-		fmt.Println(err)
+		log.Println("FAILED to connect to target server", err)
 		return
 	}
 
 	ExitChan := make(chan bool)
 	go func(sconn net.Conn, dconn net.Conn) {
-		io.Copy(sconn, dconn)
+		if sconn != nil && dconn != nil {
+			io.Copy(sconn, dconn)
+		}
 		ExitChan <- true
 	}(conn, proxyConn)
 	go func(sconn net.Conn, dconn net.Conn) {
-		io.Copy(sconn, dconn)
+		if sconn != nil && dconn != nil {
+			io.Copy(sconn, dconn)
+		}
 		ExitChan <- true
 	}(proxyConn, conn)
 
 	<-ExitChan
 }
 
+var (
+	exePath string
+	pool    *x509.CertPool
+)
+
+func init() {
+	dir, _ := os.Executable()
+	exePath = filepath.Dir(dir)
+
+	pool = x509.NewCertPool()
+	caCrt, err := ioutil.ReadFile("ca.pem")
+	if err != nil {
+		log.Fatalln("ReadFile err:", err)
+	}
+	pool.AppendCertsFromPEM(caCrt)
+}
+
 func main() {
-	fmt.Print("server start ... ")
+	log.Println("Server start ... ")
+	//log.Println(exePath)
+
 	cert, err := tls.LoadX509KeyPair("server.pem", "server.key")
 	if err != nil {
-		log.Println(err)
+		log.Fatalln("FAILED to load server key", err)
 		return
 	}
 
-	config := &tls.Config{Certificates: []tls.Certificate{cert}}
+	config := &tls.Config{
+		Certificates:       []tls.Certificate{cert},
+		MinVersion:         tls.VersionTLS12,
+		ClientCAs:          pool,
+		ClientAuth:         tls.RequireAndVerifyClientCert,
+		InsecureSkipVerify: true,
+	}
+
 	ln, err := tls.Listen("tcp", ":1443", config)
 	if err != nil {
-		fmt.Println("FAILED")
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatalln("FAILED to start server", err)
 	}
-	fmt.Println("OK")
+	log.Println("Server start OK")
 
 	for {
 		conn, err := ln.Accept()
