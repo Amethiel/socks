@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 )
@@ -84,6 +86,7 @@ func connect(conn net.Conn) (net.Conn, error) {
 
 	if buff[0] == 5 {
 		if buff[1] == 1 {
+			// only support ipv4 address
 			targetAddr := net.IP(buff[4:8])
 			targetPort := int(buff[8])<<8 + int(buff[9])
 			addrStr := fmt.Sprintf("%s:%d", targetAddr, targetPort)
@@ -141,7 +144,14 @@ func handleConnection(conn net.Conn) {
 
 func main() {
 	fmt.Print("server start ... ")
-	ln, err := net.Listen("tcp", ":1443")
+	cert, err := tls.LoadX509KeyPair("server.pem", "server.key")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	config := &tls.Config{Certificates: []tls.Certificate{cert}}
+	ln, err := tls.Listen("tcp", ":1443", config)
 	if err != nil {
 		fmt.Println("FAILED")
 		fmt.Println(err)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -10,7 +11,8 @@ import (
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	proxyConn, err := net.Dial("tcp", "192.168.100.140:1443")
+	config := &tls.Config{InsecureSkipVerify: true}
+	proxyConn, err := tls.Dial("tcp", "192.168.100.140:1443", config)
 	if err != nil {
 		fmt.Println(err)
 		return
