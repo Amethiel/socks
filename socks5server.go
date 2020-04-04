@@ -123,7 +123,7 @@ func handleConnection(conn net.Conn) {
         ExitChan <- true
     }(proxyConn, conn)
 
-    <- ExitChan
+    <-ExitChan
 }
 
 func main() {
