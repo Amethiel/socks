@@ -102,16 +102,14 @@ func connect(conn net.Conn) (net.Conn, error) {
 			binary.Write(bytes.NewBuffer(outBuff[8:10]), binary.BigEndian, connAddr.Port)
 			conn.Write(outBuff)
 			return proxyConn, nil
-		} else {
-			conn.Write([]byte{5, 1})
-			return nil, fmt.Errorf("CMD(%X) not supported", buff[1])
 		}
-	} else {
+
 		conn.Write([]byte{5, 1})
-		return nil, fmt.Errorf("Message parse error: %v", buff)
+		return nil, fmt.Errorf("CMD(%X) not supported", buff[1])
 	}
 
-	return nil, nil
+	conn.Write([]byte{5, 1})
+	return nil, fmt.Errorf("Message parse error: %v", buff)
 }
 
 func handleConnection(conn net.Conn) {
@@ -129,7 +127,7 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	ExitChan := make(chan bool, 1)
+	ExitChan := make(chan bool)
 	go func(sconn net.Conn, dconn net.Conn) {
 		io.Copy(sconn, dconn)
 		ExitChan <- true
